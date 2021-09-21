@@ -1,9 +1,3 @@
-"""
-HalfFieldOffenseの強化学習用環境
-
-サーバーへの接続
-報酬、終了、状態の提供
-"""
 
 import hfo_py
 
@@ -23,7 +17,6 @@ class HalfFieldOffense():
         return ob, reward, episode_over, {'status': STATUS_LOOKUP[self.status]}
 
     def take_action(self, action):
-        """ Converts the action space into an HFO action. """
         action_type = ACTION_LOOKUP[action[0]]
         if action_type == hfo_py.DASH:
             self.env.act(action_type, action[1], action[2])
@@ -36,14 +29,12 @@ class HalfFieldOffense():
             self.env.act(hfo_py.NOOP)
 
     def get_reward(self):
-        """ Reward is given for scoring a goal. """
         if self.status == hfo_py.GOAL:
             return 1
         else:
             return 0
 
     def reset(self):
-        """ Repeats NO-OP action until a new episode begins. """
         while self.status == hfo_py.IN_GAME:
             self.env.act(hfo_py.NOOP)
             self.status = self.env.step()
@@ -57,9 +48,6 @@ class HalfFieldOffense():
 
 
 class ServerDownException(Exception):
-    """
-    Custom error so agents can catch it and exit cleanly if the server dies unexpectedly.
-    """
     pass
 
 
@@ -67,8 +55,8 @@ ACTION_LOOKUP = {
     0: hfo_py.DASH,
     1: hfo_py.TURN,
     2: hfo_py.KICK,
-    3: hfo_py.TACKLE,  # Used on defense to slide tackle the ball
-    4: hfo_py.CATCH,  # Used only by goalie to catch the ball
+    3: hfo_py.TACKLE,
+    4: hfo_py.CATCH,
 }
 
 STATUS_LOOKUP = {

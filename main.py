@@ -1,10 +1,3 @@
-"""
-実行用のスクリプト
-モジュールとして分けるもの：環境(hfo)、エージェント(PADDPG）、メモリ(経験リプレイ)
-
-環境：
-HFOサーバーを立ち上げたあと、オフェンスエージェントとして強化学習エージェントを2体接続させる
-"""
 import hfo_py
 import torch.multiprocessing as mp
 from agent import Agent
@@ -62,25 +55,6 @@ def start_server(frames_per_trial=100,
                  seed=-1,
                  ball_x_min=0.0, ball_x_max=0.2,
                  log_dir='log', sync_mode=True, fullstate=True, verbose=False, log_game=True):
-    """
-
-    :param frames_per_trial: 1エピソードのステップ数
-    :param offense_agents:
-    :param defense_agents:
-    :param offense_npcs:
-    :param defense_npcs:
-    :param offense_on_ball: エピソードの最初でオフェンスにボールをもたせるか
-    :param seed: シード値
-    :param ball_x_min:
-    :param ball_x_max:
-    :param log_dir:
-    :param sync_mode:
-    :param fullstate:
-    :param verbose:
-    :param log_game:
-    :return: port:エージェントが使うhfo環境の接続ポート
-    :return: server_process:サーバーを閉じるためにプロセスを返す
-    """
     hfo_path = hfo_py.get_hfo_path()
     port = find_free_port()
     cmd = hfo_path + \
@@ -116,11 +90,6 @@ def start_viewer(port):
 
 
 def close(server_process):
-    """
-    hfoサーバーを閉じる
-    :param server_process: プロセスはstart_server関数からもらう
-    :return:
-    """
     if server_process is not None:
         try:
             os.kill(server_process.pid, signal.SIGKILL)
@@ -129,23 +98,10 @@ def close(server_process):
 
 
 def logging(trajectory):
-    """
-    tensorboardで出力
-    :param trajectory: 1エピソードの軌跡
-    :return:
-    """
     pass
 
 
 def train(port):
-    """
-    学習部分
-    :param num_episodes: 学習するエピソード数
-    :param num_steps: 1エピソードのステップ数
-    :param port: start_server関数からport番号をもらう
-    :return:
-    """
-
     # アクションの最大と最小
     max_a = [1, 1, 1, 100, 180, 180, 100, 180]
     min_a = [-1, -1, -1, 0, -180, -180, 0, -180]
@@ -208,11 +164,6 @@ def train(port):
 
 
 def main():
-    """
-    強化学習のメイン処理
-    :return:
-    """
-
     # HalfFieldOffenseサーバーを起動
     server_process, port = start_server(offense_agents=2)
     viewer_process = start_viewer(port)

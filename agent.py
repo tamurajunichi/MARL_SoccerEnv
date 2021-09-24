@@ -40,6 +40,10 @@ class Agent(object):
             action = self.ddpg.select_action(state)
         return action
 
+    def random_action(self):
+        action = np.random.uniform(self.min_action, self.max_action)
+        return action
+
     def predict(self, state, action):
         if self.rnd:
             # RND

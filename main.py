@@ -7,6 +7,7 @@ import utils
 import socket
 from contextlib import closing
 import time
+import datetime
 import subprocess
 import os
 import signal
@@ -54,7 +55,7 @@ def start_server(frames_per_trial=100,
                  offense_on_ball=0,
                  seed=-1,
                  ball_x_min=0.0, ball_x_max=0.2,
-                 log_dir='log', sync_mode=True, fullstate=True, verbose=False, log_game=True):
+                 log_dir='log', sync_mode=True, fullstate=True, verbose=False, log_game=False):
     hfo_path = hfo_py.get_hfo_path()
     port = find_free_port()
     cmd = hfo_path + \
@@ -101,7 +102,7 @@ def logging(trajectory):
     pass
 
 
-def train(port):
+def train(num_episodes, port, process_number):
     # アクションの最大と最小
     max_a = [1, 1, 1, 100, 180, 180, 100, 180]
     min_a = [-1, -1, -1, 0, -180, -180, 0, -180]
@@ -115,20 +116,31 @@ def train(port):
     # Experience Replayで使用するリプレイバッファのインスタンス化
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
+    # ログ保存用のndarray
+    log = np.zeros((num_episodes, 6))
+
+
     # エージェントと環境の相互作用部分
     state = env.reset()
-    episodes = 0
+    episode = 0
+    timestep = 0
+    episode_timestep = 0
+    update_ratio = 0.1
+    ro = 0.003
     while True:
         trajectory = []
         episode_reward = 0
         exp_episode_reward = 0
 
-        action = agent.action(state)
+        if timestep > 1000:
+            action = agent.action(state)
+        else:
+            action = agent.random_action()
         next_state, reward, done, info = env.step(suit_action(action))
         done_bool = float(done)
 
         predicted_state = agent.predictor.predict(state, action)
-        exp_reward = np.linalg.norm(np.concatenate((next_state, np.array([reward]))) - predicted_state)
+        exp_reward = np.linalg.norm(np.concatenate((next_state, np.array([reward]))) - predicted_state)*ro
 
         trajectory.append({"state": state,
                             "action": action,
@@ -142,6 +154,8 @@ def train(port):
         episode_reward += reward
         exp_episode_reward += exp_reward
         state = next_state
+        timestep += 1
+        episode_timestep += 1
         if done:
             # モンテカルロアップデートで使うものを以下でtransitionに付け加える
             add_on_policy_mc(trajectory)
@@ -150,7 +164,23 @@ def train(port):
                 replay_buffer.add(i["state"], i["action"], i["next_state"],
                                   i["reward"], i["exp_reward"], i["n_step"],
                                   i["exp_n_step"], i["done"])
-            agent.learn(replay_buffer)
+            if timestep >= 1000:
+                critic_mean, predictor_loss_mean = np.ndarray([0,0,0]), 0
+                for i in range(int(episode_timestep*update_ratio)):
+                    critic, predictor_loss = agent.learn(replay_buffer)
+                    critic_mean += np.ndarray(critic)
+                    predictor_loss_mean += predictor_loss_mean
+                critic_mean = critic_mean / len(critic_mean)
+                predictor_loss_mean = predictor_loss_mean / len(critic_mean)
+
+
+                # logの追加
+                log[episode][0] = episode_reward
+                log[episode][1] = exp_episode_reward
+                log[episode][2] = critic_mean[0] # current_q.mean().item()
+                log[episode][3] = critic_mean[1] # mixed_q.mean().item()
+                log[episode][4] = critic_mean[2] # critic_loss (mse current_q - mixed_q)
+                log[episode][5] = predictor_loss_mean
 
 
             # エピソード終了のリセット
@@ -158,15 +188,30 @@ def train(port):
             episode_reward = 0
             exp_episode_reward = 0
             transitions = []
-            episode_timesteps = 0
-            episodes += 1
-            print(episodes)
+            episode += 1
+            episode_timestep = 0
+
+
+        if episode >= num_episodes:
+            try:
+                np.save('./agent_log/{}_{}.npy'.format(process_number,datetime.datetime.now()), log)
+            except FileNotFoundError:
+                try:
+                    os.mkdir('agent_log')
+                    np.save('./agent_log/{}_{}.npy'.format(process_number, datetime.datetime.now()), log)
+                except FileExistsError:
+                    np.save('./agent_log/{}_{}.npy'.format(process_number, datetime.datetime.now()), log)
+            break
 
 
 def main():
+    num_episodes = 100000
+    viewer = False
+
     # HalfFieldOffenseサーバーを起動
     server_process, port = start_server(offense_agents=2)
-    viewer_process = start_viewer(port)
+    if viewer:
+        viewer_process = start_viewer(port)
     # train(num_episodes,port)
 
     # pytorchのマルチプロセス
@@ -174,13 +219,14 @@ def main():
     num_processes = 2
     processes = []
     for rank in range(num_processes):
-        p = mp.Process(target=train, args=(port,))
+        p = mp.Process(target=train, args=(num_episodes,port,rank))
         p.start()
         processes.append(p)
-        time.sleep(3)
+        time.sleep(1)
     for p in processes:
         p.join()
-    close(viewer_process)
+    if viewer:
+        close(viewer_process)
     close(server_process)
 
 

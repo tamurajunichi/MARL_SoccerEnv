@@ -28,7 +28,7 @@ class Actor(nn.Module):
 		out = F.leaky_relu(self.l2(out))
 		out = F.leaky_relu(self.l3(out))
 		out = F.leaky_relu(self.l4(out))
-		return	self.l5(out)
+		return self.l5(out)
 
 
 class Critic(nn.Module):

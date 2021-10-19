@@ -1,4 +1,3 @@
-
 import hfo_py
 
 class HalfFieldOffense():

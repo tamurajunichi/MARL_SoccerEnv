@@ -1,86 +1,68 @@
+import os
 import numpy as np
-import torch
-
-class ReplayBuffer(object):
-	def __init__(self, state_dim, action_dim, max_size=int(500000)):
-		self.max_size = max_size
-		self.ptr = 0
-		self.size = 0
-
-		self.state = np.zeros((max_size, state_dim))
-		self.action = np.zeros((max_size, action_dim))
-		self.next_state = np.zeros((max_size, state_dim))
-		self.reward = np.zeros((max_size, 1))
-		self.exp_reward = np.zeros((max_size, 1))
-		self.n_step = np.zeros((max_size, 1))
-		self.exp_n_step = np.zeros((max_size, 1))
-		self.not_done = np.zeros((max_size, 1))
-
-		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+import hfo_py
+from environment import ACTION_LOOKUP
 
 
-	def add(self,state,action,next_state,reward,ex_rew,n_step,ex_n_step,done):
-		self.state[self.ptr] = state
-		self.action[self.ptr] = action
-		self.next_state[self.ptr] = next_state
-		self.reward[self.ptr] = reward
-		self.exp_reward[self.ptr] = ex_rew
-		self.n_step[self.ptr] = n_step
-		self.exp_n_step[self.ptr] = ex_n_step
-		self.not_done[self.ptr] = 1. - done
+# onpolicy vs offpolicyの論文：https://www.cs.utexas.edu/~pstone/Papers/bib2html-links/DeepRL16-hausknecht.pdf
+# on_policy_mc = Σ^T_i=t(γ^(i-t)*r_i)
+# mixing_update: y = beta*on_policy_mc + (1-beta)*q_learning
+def add_on_policy_mc(trajectory):
+    r = 0
+    exp_r = 0
+    dis = 0.99
+    # range(start, stop, step)
+    for i in range(len(trajectory)-1,-1,-1):
+        r = trajectory[i]["reward"]+dis*r
+        trajectory[i]["n_step"] = r
+        exp_r = trajectory[i]["exp_reward"]+dis*exp_r
+        trajectory[i]["exp_n_step"] = exp_r
+    return trajectory
 
-		self.ptr = (self.ptr + 1) % self.max_size
-		self.size = min(self.size + 1, self.max_size)
+
+# ActorのNNから得られるアクションを環境で扱えるように変換
+def suit_action(action):
+    ret_act = np.zeros(6)
+    ret_act[0] = np.argmax(action[0:3])
+    ret_act[1:6] = action[3:8]
+    return ret_act
+
+def random_action():
+    max_a = [1, 1, 1, 100, 180, 180, 100, 180]
+    min_a = [-1, -1, -1, 0, -180, -180, 0, -180]
+    action = np.random.uniform(min_a, max_a)
+    return action
+
+def take_action(action, env):
+    action_type = ACTION_LOOKUP[action[0]]
+    if action_type == hfo_py.DASH:
+        env.env.act(action_type, action[1], action[2])
+    elif action_type == hfo_py.TURN:
+        env.env.act(action_type, action[3])
+    elif action_type == hfo_py.KICK:
+        env.env.act(action_type, action[4], action[5])
 
 
-	def sample(self, batch_size):
-		ind = np.random.randint(0, self.size, size=batch_size)
+class Logger:
+    def __init__(self,n,log_size):
+        self.log_array = np.zeros((n, log_size))
+        self.n = 0
 
-		return (
-			torch.FloatTensor(self.state[ind]).to(self.device),
-			torch.FloatTensor(self.action[ind]).to(self.device),
-			torch.FloatTensor(self.next_state[ind]).to(self.device),
-			torch.FloatTensor(self.reward[ind]).to(self.device),
-			torch.FloatTensor(self.exp_reward[ind]).to(self.device),
-			torch.FloatTensor(self.n_step[ind]).to(self.device),
-			torch.FloatTensor(self.exp_n_step[ind]).to(self.device),
-			torch.FloatTensor(self.not_done[ind]).to(self.device)
-		)
+    def add(self,*data):
+        try:
+            self.log_array[self.n] = data
+        except ValueError:
+            self.log_array[self.n] = data[0]
+        self.n += 1
 
-	def sample_range(self, size):
-		ind = np.arange(0, size)
-
-		return (
-			torch.FloatTensor(self.state[ind]).to(self.device),
-			torch.FloatTensor(self.action[ind]).to(self.device),
-			torch.FloatTensor(self.next_state[ind]).to(self.device),
-			torch.FloatTensor(self.reward[ind]).to(self.device),
-			torch.FloatTensor(self.exp_reward[ind]).to(self.device),
-			torch.FloatTensor(self.n_step[ind]).to(self.device),
-			torch.FloatTensor(self.exp_n_step[ind]).to(self.device),
-			torch.FloatTensor(self.not_done[ind]).to(self.device)
-		)
-
-	def save(self,folder,episode_num):
-		f = open(folder+'/params_{}'.format(episode_num),'w')
-		f.write(str(self.max_size)+','+str(self.ptr)+','+str(self.size))
-		f.close()
-		np.save(folder+'/state_{}'.format(episode_num),self.state)
-		np.save(folder+'/action_{}'.format((episode_num)),self.action)
-		np.save(folder+'/next_state_{}'.format(episode_num),self.next_state)
-		np.save(folder+'/reward_{}'.format(episode_num),self.reward)
-		np.save(folder+'/exp_reward_{}'.format(episode_num),self.exp_reward)
-		np.save(folder+'/not_done_{}'.format(episode_num),self.not_done)
-	
-	def load(self,folder,episode_num):
-		f = open(folder+'/params_{}'.format(episode_num),'r')
-		a = f.read()
-		a = a.split(',')
-		self.max_size,self.ptr,self.size = int(a[0]),int(a[1]),int(a[2])
-		f.close()
-		self.state = np.load(folder+'/state_{}.npy'.format(episode_num))
-		self.action = np.load(folder+'/action_{}.npy'.format(episode_num))
-		self.next_state = np.load(folder+'/next_state_{}.npy'.format(episode_num))
-		self.reward = np.load(folder+'/reward_{}.npy'.format(episode_num))
-		self.exp_reward = np.load(folder+'/exp_reward_{}.npy'.format(episode_num))
-		self.not_done = np.load(folder+'/not_done_{}.npy'.format(episode_num))
+    def out(self, log_path, file_name):
+        save_name = log_path + file_name
+        save_log = self.log_array[:self.n,:]
+        try:
+            np.save(save_name, save_log)
+        except FileNotFoundError:
+            try:
+                os.mkdir(log_path)
+                np.save(save_name, save_log)
+            except FileExistsError:
+                np.save(save_name, save_log)

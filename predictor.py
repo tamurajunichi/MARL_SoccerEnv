@@ -67,9 +67,9 @@ class Predictor(object):
 
 
 class RND_Network(nn.Module):
-    def __init__(self,state_dim):
+    def __init__(self,state_dim,action_dim):
         super(RND_Network, self).__init__()
-        self.l1 = nn.Linear(state_dim,1024)
+        self.l1 = nn.Linear(state_dim+action_dim,1024)
         self.l2 = nn.Linear(1024,512)
         self.l3 = nn.Linear(512,256)
         self.l4 = nn.Linear(256,128)
@@ -87,8 +87,8 @@ class RND_Network(nn.Module):
         nn.init.zeros_(self.l4.bias.data)
         nn.init.zeros_(self.l5.bias.data)
 
-    def forward(self, state):
-        inp = state
+    def forward(self, state, action):
+        inp = cat((state,action),1)
         out = F.leaky_relu(self.l1(inp))
         out = F.leaky_relu(self.l2(out))
         out = F.leaky_relu(self.l3(out))
@@ -97,17 +97,18 @@ class RND_Network(nn.Module):
 
 
 class RND_Predictor(object):
-    def __init__(self,state_dim):
-        self.net = RND_Network(state_dim).to(device)
+    def __init__(self,state_dim,action_dim):
+        self.net = RND_Network(state_dim,action_dim).to(device)
         self.net_optimizer = torch.optim.Adam(self.net.parameters())
 
-    def predict(self,state):
+    def predict(self,state,action):
         state = torch.FloatTensor(state.reshape(1,-1)).to(device)
-        return self.net(state).cpu().data.numpy().flatten()
+        action = torch.FloatTensor(action.reshape(1,-1)).to(device)
+        return self.net(state,action).cpu().data.numpy().flatten()
 
     def train(self,replay_buffer, target, batch_size=64):
         state,action, next_state, reward, ex_reward, n_step, ex_n_step, not_done = replay_buffer.sample(batch_size)
-        loss = F.mse_loss(self.net(state), target.net(state))
+        loss = F.mse_loss(self.net(state,action), target.net(state,action))
 
         self.net_optimizer.zero_grad()
         loss.backward()
@@ -126,12 +127,13 @@ class RND_Predictor(object):
 
 
 class RND_Target(object):
-    def __init__(self,state_dim):
-        self.net = RND_Network(state_dim).to(device)
+    def __init__(self,state_dim,action_dim):
+        self.net = RND_Network(state_dim,action_dim).to(device)
 
-    def predict(self,state):
+    def predict(self,state,action):
         state = torch.FloatTensor(state.reshape(1,-1)).to(device)
-        return self.net(state).cpu().data.numpy().flatten()
+        action = torch.FloatTensor(action.reshape(1,-1)).to(device)
+        return self.net(state,action).cpu().data.numpy().flatten()
 
     def save(self, filename):
         torch.save(self.net.state_dict(), filename)

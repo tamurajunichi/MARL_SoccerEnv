@@ -48,18 +48,16 @@ class PADDPG(object):
 
         # 探索法別にtargetQの計算を分ける
         if self.exploration == "EG":
-            target_Q = reward + (not_done * self.discount * target_Q).detach()
+            target_Q = reward + ((1-not_done) * self.discount * target_Q).detach()
         else:
-            target_Q = (reward + ex_reward) + (not_done * self.discount * target_Q).detach()
+            target_Q = (reward + ex_reward) + ((1-not_done) * self.discount * target_Q).detach()
 
         current_Q = self.critic(state, action)
         beta = 0.2
 
-        # 探索法別にmixedQの計算を分ける
-        if self.exploration == "EG":
-            mixed_q = beta * n_step + (1 - beta) * target_Q
-        else:
-            mixed_q = beta * (n_step + ex_n_step) + (1 - beta) * target_Q
+        mixed_q = beta * n_step + (1 - beta) * target_Q
+        # mixed_q = beta * (n_step + ex_n_step) + (1 - beta) * target_Q
+
         critic_loss = F.mse_loss(current_Q, mixed_q)
 
         self.critic_optimizer.zero_grad()
@@ -76,7 +74,7 @@ class PADDPG(object):
         actor_loss.backward()
         delta_a = copy.deepcopy(current_a.grad.data)
         delta_a = self.invert_gradient(delta_a, current_a)
-        current_a = self.actor(state)
+        current_a = self.actor(Variable(state))
         out = -torch.mul(delta_a, current_a)
         self.actor.zero_grad()
         out.backward(torch.ones(out.shape).to(device))

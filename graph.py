@@ -3,6 +3,7 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 from numba import jit
 import os
+import glob
 
 TITLE_LOOKUP = {
     0:"Episode Rewards",
@@ -11,6 +12,8 @@ TITLE_LOOKUP = {
     3:"Mixed Q-Values",
     4:"Critic Network Loss",
     5:"Predictor Network Loss",
+    6:"Kick Count",
+    7:"n_step"
 }
 
 @jit(nopython=True)
@@ -48,8 +51,8 @@ def output_graph(file_name):
     figure = plt.figure(figsize=(16,9))
     sub_figures = []
     # 3x2の6つでグラフ作成しリストに入れておく
-    for i in range(6):
-        sub_figures.append(figure.add_subplot(3,2,i+1))
+    for i in range(7):
+        sub_figures.append(figure.add_subplot(4,2,i+1))
 
     # サブグラフの設定
     for i, sub_fig in enumerate(sub_figures):
@@ -65,9 +68,14 @@ def output_graph(file_name):
     # plt.show()
 
 def main():
-    file_list = os.listdir(path='./agent_log')
-    for file in file_list:
-        output_graph(file_name = file)
+    seed = "572682235"
+    path = "./agent_log/"
+    file = glob.glob(path + "*_{}_*".format(seed))
+    for f in file:
+        if not "timestep" in f:
+            file = f
+            break
+    output_graph(file.split('/')[-1])
 
 if __name__ == '__main__':
     main()

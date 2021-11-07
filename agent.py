@@ -13,8 +13,8 @@ class Agent(object):
         self.exploration = exploration
         # predictor別の設定
         if self.exploration == "RND" or self.exploration == "RND+EG":
-            self.rnd_predictor = predictor.RND_Predictor(state_dim,action_dim)
-            self.rnd_target = predictor.RND_Target(state_dim,action_dim)
+            self.rnd_predictor = predictor.RND_Predictor(state_dim)
+            self.rnd_target = predictor.RND_Target(state_dim)
         elif self.exploration == "CE" or self.exploration == "CE+EG":
             self.predictor = predictor.Predictor(state_dim,action_dim)
         else:
@@ -49,7 +49,7 @@ class Agent(object):
 
     def predict(self, state, action):
         if self.exploration == "RND" or self.exploration == "RND+EG":
-            return self.rnd_predictor.predict(state,action), self.rnd_target.predict(state,action)
+            return self.rnd_predictor.predict(state), self.rnd_target.predict(state)
         elif self.exploration == "CE" or self.exploration == "CE+EG":
             return self.predictor.predict(state, action)
         else:

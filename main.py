@@ -1,5 +1,6 @@
 import hfo_py
 import torch.multiprocessing as mp
+from torch.utils.tensorboard import SummaryWriter
 from agent import Agent
 from environment import HalfFieldOffense
 import server
@@ -25,12 +26,13 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
     # Experience Replayで使用するリプレイバッファのインスタンス化
     replay_buffer = memory.ReplayBuffer(state_dim, action_dim)
 
-    # ログ保存用
+    # ロガーの設定
     max_timestep = 100000000
     episode_logger = utils.Logger(num_episodes,7)
     timestep_logger = utils.Logger(max_timestep, 59)
+    board_logger = SummaryWriter(log_dir="./logs")
 
-    # エージェントと環境の相互作用部分
+    # エピソード初めの最初の状態s0
     state = env.reset()
 
     # if you add a new feature in lowlevel_feature_extractor.cpp
@@ -76,6 +78,7 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
 
             done_bool = float(done)
 
+            # explorationによってpredictから返ってくる変数の数が変わります
             if exploration == "EG":
                 exp_reward = 0
             elif exploration == "CE" or exploration == "CE+EG":
@@ -121,6 +124,7 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
                     episode_logger.add(episode_reward, exp_episode_reward, critic_mean[0], critic_mean[1], critic_mean[2], predictor_loss_mean, kick_count)
 
 
+
                 # エピソード終了のリセット
                 state, done = env.reset(), False
                 # position, state = state[1:sep_idx], np.append(state[0:1], state[sep_idx:])
@@ -145,30 +149,32 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
 
 def main():
     # trainに渡す設定
-    num_episodes = 100000
-    seed = np.random.randint(0, 1000000000)
+    num_episodes = 50000
     exploration = ["RND", "CE","RND+EG","CE+EG","EG"]
     ro = [0.001, 0.01, 0.1, 1, 10, 100, 1000]
     viewer = False
 
-    # pytorchのマルチプロセス
-    # https://pytorch.org/docs/stable/notes/multiprocessing.html
-    num_processes = 1
-    # HalfFieldOffenseサーバーを起動
-    server_process, port = server.start(offense_agents=num_processes)
-    if viewer:
-        viewer_process = server.start_viewer(port)
-    processes = []
-    for rank in range(num_processes):
-        p = mp.Process(target=train, args=(num_episodes,port,rank,exploration[2],ro[3],seed))
-        p.start()
-        processes.append(p)
-        time.sleep(1)
-    for p in processes:
-        p.join()
-    if viewer:
-        server.close(viewer_process)
-    server.close(server_process)
+    for r in ro:
+        print("r:",r)
+        seed = np.random.randint(0, 1000000000)
+        # pytorchのマルチプロセス
+        # https://pytorch.org/docs/stable/notes/multiprocessing.html
+        num_processes = 1
+        # HalfFieldOffenseサーバーを起動
+        server_process, port = server.start(offense_agents=num_processes)
+        if viewer:
+            viewer_process = server.start_viewer(port)
+        processes = []
+        for rank in range(num_processes):
+            p = mp.Process(target=train, args=(num_episodes,port,rank,exploration[0],r,seed))
+            p.start()
+            processes.append(p)
+            time.sleep(1)
+        for p in processes:
+            p.join()
+        if viewer:
+            server.close(viewer_process)
+        server.close(server_process)
 
 
 if __name__ == '__main__':

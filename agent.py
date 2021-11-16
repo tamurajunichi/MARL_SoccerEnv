@@ -5,11 +5,11 @@ import numpy as np
 
 
 class Agent(object):
-    def __init__(self,state_dim,action_dim,max_action,min_action,discount=0.99,tau=1e-4,exploration="EG"):
+    def __init__(self,state_dim,action_dim,max_action,min_action,agents,discount=0.99,tau=1e-4,exploration="EG"):
 
         self.min_action = min_action
         self.max_action = max_action
-        self.ddpg = PADDPG(state_dim, action_dim, max_action, min_action, exploration)
+        self.ddpg = PADDPG(state_dim, action_dim, max_action, min_action,agents,exploration)
         self.exploration = exploration
         # predictor別の設定
         if self.exploration == "RND" or self.exploration == "RND+EG":
@@ -34,7 +34,7 @@ class Agent(object):
         if self.exploration == "EG" or self.exploration == "RND+EG" or self.exploration == "CE+EG":
             self.counter += 1
             eps= random.random()
-            dec = min(max(0.1,1.0 - float(self.counter)*0.00003),1)
+            dec = min(max(0.1,1.0 - float(self.counter)*0.0000002),1)
             if eps < dec:
                 action = np.random.uniform(self.min_action, self.max_action)
             else:

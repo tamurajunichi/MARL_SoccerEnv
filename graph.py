@@ -67,7 +67,7 @@ def output_graph(file_name):
 
     plt.savefig("./log_figure/{}.jpg".format('.'.join(file_name.split('.')[:2])))
 
-def output_graph_overlap(file_names, title, w=0.9999, log_scale=False):
+def output_graph_overlap(file_names, title, w=0.01, log_scale=False):
     color_list = ["r", "g", "b", "c", "m", "k", "w"]
     color_list = list(matplotlib.colors.BASE_COLORS.items())
 
@@ -76,8 +76,8 @@ def output_graph_overlap(file_names, title, w=0.9999, log_scale=False):
     sub_figures = []
 
     # 表示させたいデータに合わせて変更
-    for i in range(1):
-        sub_figures.append(figure.add_subplot(1, 1, i + 1))
+    for i in range(6):
+        sub_figures.append(figure.add_subplot(3, 2, i + 1))
 
     for j,file_name in enumerate(file_names):
         data = np.load('./agent_log/{}'.format(file_name))
@@ -88,21 +88,28 @@ def output_graph_overlap(file_names, title, w=0.9999, log_scale=False):
         for i, sub_fig in enumerate(sub_figures):
             y = data[:, i]
             y = debias_smooth(y, weight=w)
-            sub_fig.plot(x, y, label='.'.join(file_name.split('_')[-1].split('.')[:-1]), color=color_list[j][1])
+            #sub_fig.plot(x, y, label='.'.join(file_name.split('_')[-1].split('.')[:-1]), color=color_list[j][1])
+            sub_fig.plot(x,y,label='agent'+file_names[j].split('_')[0],color=color_list[j][1])
             sub_fig.set_title(TITLE_LOOKUP[i])
             sub_fig.ticklabel_format(style="sci", axis="x", scilimits=(0, 0))
             sub_fig.xaxis.set_major_locator(MaxNLocator(11))
             sub_fig.grid(b=True, which='major', color='gray', linestyle='-')
             if log_scale:
                 sub_fig.set_yscale('log')
-            sub_fig.legend(bbox_to_anchor=(1, 1), loc='upper left', borderaxespad=0)
+            sub_fig.legend(bbox_to_anchor=(0, 1), loc='upper left', borderaxespad=0)
             figure.subplots_adjust(wspace=0.4, hspace=0.6)
 
     # dataリスト数分処理
     plt.savefig("./log_figure/{}.jpg".format(title))
 
 def main():
-    seeds = ["621201939", "520718365", "231577753"]
+    seeds = ["890594692", "384301017", "483641640", "395868005", "57384584"]
+    seeds = ["204019408"]
+    seeds = ["659038532", "577283992", "957566397", "660590575", "9121176"]
+    # roの変化みるシード
+    seeds = ["621201939", "520718365", "231577753","353498533", "535709406", "572682235"]
+    seeds = ["146837606"]
+    seeds = [""]
     path = "./agent_log/"
     files = []
     for seed in seeds:
@@ -110,9 +117,8 @@ def main():
         for f in file:
             if not "timestep" in f:
                 file = f
-                break
-        file_name = file.split('/')[-1]
-        files.append(file_name)
+                file_name = file.split('/')[-1]
+                files.append(file_name)
     output_graph_overlap(file_names=files, title="RND")
 
 if __name__ == '__main__':

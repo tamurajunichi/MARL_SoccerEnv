@@ -38,7 +38,7 @@ def start(frames_per_trial=100,
              offense_agents,
              defense_agents, offense_npcs, defense_npcs, port,
              offense_on_ball, seed, ball_x_min, ball_x_max,
-             log_dir,1200)
+             log_dir,10000)
     if not sync_mode: cmd += " --no-sync"
     if fullstate:     cmd += " --fullstate"
     if verbose:       cmd += " --verbose"

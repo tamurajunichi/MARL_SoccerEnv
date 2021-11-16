@@ -16,7 +16,7 @@ class HalfFieldOffense():
     def step(self, action):
         self.take_action(action)
         self.status = self.env.step()
-        reward = self.get_reward()
+        reward = self.get_reward(action)
         ob = self.env.getState()
         episode_over = self.status != hfo_py.IN_GAME
         return ob, reward, episode_over, {'status': STATUS_LOOKUP[self.status]}
@@ -33,7 +33,17 @@ class HalfFieldOffense():
             print('Unrecognized action %d' % action_type)
             self.env.act(hfo_py.NOOP)
 
-    def get_reward(self):
+    def say(self,msg):
+        self.env.say(msg)
+
+    def hear(self):
+        try:
+            msg = self.env.hear()
+        except UnicodeDecodeError:
+            msg = None
+        return msg
+
+    def get_reward(self, action):
         current_state = self.env.getState()
         #print("State =",current_state)
         #print("len State =",len(current_state))
@@ -41,6 +51,7 @@ class HalfFieldOffense():
         goal_proximity = current_state[15]
         ball_dist = 1.0 - ball_proximity
         goal_dist = 1.0 - goal_proximity
+        # true:1, false:-1
         kickable = current_state[12]
         ball_ang_sin_rad = current_state[51]
         ball_ang_cos_rad = current_state[52]
@@ -67,8 +78,10 @@ class HalfFieldOffense():
         if not self.first_step:
             mtb = self.__move_to_ball_reward(kickable_delta, ball_prox_delta)
             ktg = 3. * self.__kick_to_goal_reward(ball_dist_goal_delta)
+            k = self.__kick_reward(action)
             eot = self.__EOT_reward()
             reward = mtb + ktg + eot
+            #reward = k + eot
             # print("mtb: %.06f ktg: %.06f eot: %.06f"%(mtb,ktg,eot))
 
         self.first_step = False
@@ -97,6 +110,14 @@ class HalfFieldOffense():
         # elif self.status == hfo_py.CAPTURED_BY_DEFENSE:
         #    return -1.
         return 0.
+
+    def __kick_reward(self, action):
+        reward = 0
+        action_type = ACTION_LOOKUP[action[0]]
+        if self.old_kickable >= 1 and action_type == hfo_py.KICK:
+            print("KICK!!")
+            reward += 1. * 0.01 * action[4]
+        return reward
 
     def reset(self):
         while self.status == hfo_py.IN_GAME:

@@ -14,7 +14,7 @@ def add_on_policy_mc(trajectory):
     # 最後のステップはrewardの値
     trajectory[n-1]["n_step"] = n_step_returns[n-1]
     exp_n_step_returns = np.zeros((n,))
-    exp_n_step_returns[n-1] = trajectory[n-1]["exp_reward"]
+    exp_n_step_returns[n-1] = trajectory[n-1]["int_reward"]
     trajectory[n-1]["exp_n_step"] = exp_n_step_returns[n-1]
     dis = 0.99
     # range(start, stop, step)
@@ -25,7 +25,7 @@ def add_on_policy_mc(trajectory):
         n_step_returns[i] = r+dis*target_r
         trajectory[i]["n_step"] = n_step_returns[i]
 
-        exp_r = trajectory[i]["exp_reward"]
+        exp_r = trajectory[i]["int_reward"]
         target_exp_r = exp_n_step_returns[i+1]
         exp_n_step_returns[i] = exp_r+dis*target_exp_r
         trajectory[i]["exp_n_step"] = exp_n_step_returns[i]
@@ -53,6 +53,16 @@ def take_action(action, env):
         env.env.act(action_type, action[3])
     elif action_type == hfo_py.KICK:
         env.env.act(action_type, action[4], action[5])
+
+def translation(var):
+    s = "("
+    if hasattr(var, "__iter__"):
+        for v in var:
+            s += str(v).replace('.', '_')+"/"
+    else:
+        s += str(var).replace('.', '_')
+    s+=")"
+    return s
 
 
 class Logger:

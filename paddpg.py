@@ -10,7 +10,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class PADDPG(object):
-    def __init__(self, state_dim, action_dim, max_action, min_action, exploration="EG", discount=0.99, tau=1e-4):
+    def __init__(self, state_dim, action_dim, max_action, min_action, agents, exploration="EG", discount=0.99, tau=1e-4):
 
         self.actor = Actor(state_dim, action_dim).to(device)
         self.actor_target = copy.deepcopy(self.actor)
@@ -28,6 +28,7 @@ class PADDPG(object):
         self.rng = (self.max_p - self.min_p).detach()
 
         self.exploration = exploration
+        self.agents = agents
 
     def invert_gradient(self, delta_a, current_a):
         index = delta_a > 0
@@ -43,7 +44,12 @@ class PADDPG(object):
         return np.clip(p.cpu().data.numpy().flatten(), np_min, np_max)
 
     def train(self, replay_buffer, batch_size=64):
-        state, action, next_state, reward, ex_reward, n_step, ex_n_step, not_done = replay_buffer.sample(batch_size)
+        if self.agents >= 2:
+            state, action, next_state, reward, ex_reward, n_step, ex_n_step, not_done, o_state,o_next_state,o_int_reward = replay_buffer.sample2(batch_size)
+        else:
+            state, action, next_state, reward, ex_reward, n_step, ex_n_step, not_done = replay_buffer.sample(batch_size)
+
+        ################################# critic update #################################
         target_Q = self.critic_target(next_state, self.actor_target(next_state))
 
         # 探索法別にtargetQの計算を分ける
@@ -65,6 +71,22 @@ class PADDPG(object):
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10)
         self.critic_optimizer.step()
 
+        if self.agents >= 2:
+            target_Q = self.critic_target(o_next_state, self.actor_target(o_next_state))
+            target_Q = (reward+o_int_reward) + ((1-not_done) * self.discount * target_Q).detach()
+            current_Q = self.critic(o_state, self.actor(o_state))
+            beta = 0.2
+
+            #mixed_q = beta * n_step + (1 - beta) * target_Q
+            # mixed_q = beta * (n_step + ex_n_step) + (1 - beta) * target_Q
+
+            critic_loss = F.mse_loss(current_Q, target_Q)
+
+            self.critic_optimizer.zero_grad()
+            critic_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10)
+            self.critic_optimizer.step()
+        ################################# actor update #################################
         current_a = Variable(self.actor(state))
         current_a.requires_grad = True
 

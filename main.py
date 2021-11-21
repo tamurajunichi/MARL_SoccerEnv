@@ -30,7 +30,7 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
     max_timestep = 100000000
     episode_logger = utils.Logger(num_episodes,7)
     timestep_logger = utils.Logger(max_timestep, 59)
-    board_logger = SummaryWriter(log_dir="./logs")
+    board_writer = SummaryWriter(log_dir="./logs")
 
     # エピソード初めの最初の状態s0
     state = env.reset()
@@ -46,7 +46,7 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
     kick_count = 0
     kickable = False
     episode_reward = 0
-    exp_episode_reward = 0
+    int_episode_reward = 0
     trajectory = []
     try:
         while True:
@@ -80,13 +80,13 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
 
             # explorationによってpredictから返ってくる変数の数が変わります
             if exploration == "EG":
-                exp_reward = 0
+                int_reward = 0
             elif exploration == "CE" or exploration == "CE+EG":
                 predict = agent.predict(state, action)
-                exp_reward = np.linalg.norm(np.concatenate((next_state, np.array([reward]))) - predict) * ro
+                int_reward = np.linalg.norm(np.concatenate((next_state, np.array([reward]))) - predict) * ro
             elif exploration == "RND" or exploration == "RND+EG":
-                predict,target = agent.predict(state, action)
-                exp_reward = np.linalg.norm(target - predict) * ro
+                predict,target = agent.predict(next_state, action)
+                int_reward = np.linalg.norm(target - predict) * ro
             else:
                 raise(ValueError)
 
@@ -94,12 +94,12 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
                                 "action": action,
                                 "next_state": next_state,
                                 "reward": reward,
-                                "exp_reward": exp_reward,
+                                "int_reward": int_reward,
                                 "done": done_bool
                                 })
 
             episode_reward += reward
-            exp_episode_reward += exp_reward
+            int_episode_reward += int_reward
             state = next_state
             timestep += 1
             episode_timestep += 1
@@ -109,8 +109,8 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
                 # trajectoryをすべてreplay bufferへいれる
                 for i in trajectory:
                     replay_buffer.add(i["state"], i["action"], i["next_state"],
-                                      i["reward"], i["exp_reward"], i["n_step"],
-                                      i["exp_n_step"], i["done"])
+                                      i["reward"], i["int_reward"], i["n_step"],
+                                      i["int_n_step"], i["done"])
                 if timestep >= 1000:
                     critic_mean, predictor_loss_mean = np.array([0,0,0],dtype='float64'), 0
                     for i in range(int(episode_timestep*update_ratio)):
@@ -121,7 +121,13 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
                     predictor_loss_mean = predictor_loss_mean / len(critic_mean)
 
                     # episodeロガー
-                    episode_logger.add(episode_reward, exp_episode_reward, critic_mean[0], critic_mean[1], critic_mean[2], predictor_loss_mean, kick_count)
+                    episode_logger.add(episode_reward, int_episode_reward, critic_mean[0], critic_mean[1], critic_mean[2], predictor_loss_mean, kick_count)
+                    board_writer.add_scalar("episode_reward/episodes", episode_reward, episode)
+                    board_writer.add_scalar("int_episode_reward/episodes", int_episode_reward, episode)
+                    board_writer.add_scalar("current_q/episodes", critic_mean[0], episode)
+                    board_writer.add_scalar("mixed_q/episodes", critic_mean[1], episode)
+                    board_writer.add_scalar("critic_loss/episodes", critic_mean[2], episode)
+                    board_writer.add_scalar("predictor_loss/episodes", predictor_loss_mean, episode)
 
 
 
@@ -154,8 +160,7 @@ def main():
     ro = [0.001, 0.01, 0.1, 1, 10, 100, 1000]
     viewer = False
 
-    for r in ro:
-        print("r:",r)
+    for i in range(1):
         seed = np.random.randint(0, 1000000000)
         # pytorchのマルチプロセス
         # https://pytorch.org/docs/stable/notes/multiprocessing.html
@@ -166,7 +171,7 @@ def main():
             viewer_process = server.start_viewer(port)
         processes = []
         for rank in range(num_processes):
-            p = mp.Process(target=train, args=(num_episodes,port,rank,exploration[0],r,seed))
+            p = mp.Process(target=train, args=(num_episodes,port,rank,exploration[3],ro[3],seed))
             p.start()
             processes.append(p)
             time.sleep(1)

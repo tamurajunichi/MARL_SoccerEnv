@@ -34,7 +34,7 @@ class Agent(object):
         if self.exploration == "EG" or self.exploration == "RND+EG" or self.exploration == "CE+EG":
             self.counter += 1
             eps= random.random()
-            dec = min(max(0.1,1.0 - float(self.counter)*0.00003),1)
+            dec = min(max(0.1, 0.5 - float(self.counter)*0.0000002),1)
             if eps < dec:
                 action = np.random.uniform(self.min_action, self.max_action)
             else:

@@ -80,6 +80,7 @@ class HalfFieldOffense():
         if self.env.playerOnBall().unum < 0 or self.env.playerOnBall().unum == self.unum:
             reward += ball_prox_delta
         if kickable_delta >= 1 and not self.got_kickable_reward:
+            print("KICK!")
             reward += 1.
             self.got_kickable_reward = True
         return reward

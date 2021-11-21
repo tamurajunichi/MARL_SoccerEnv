@@ -9,9 +9,9 @@ import glob
 TITLE_LOOKUP = {
     0:"Episode Rewards",
     1:"Intrinsic Episode Rewards",
-    2:"Current Q-Values",
-    3:"Mixed Q-Values",
-    4:"Critic Network Loss",
+    2:"current Q-Values",
+    3:"ext Mixed Q-Values",
+    4:"Total Critic Network Loss",
     5:"Predictor Network Loss",
     6:"Kick Count",
     7:"n_step"
@@ -77,7 +77,7 @@ def output_graph_overlap(file_names, title, w=0.9999, log_scale=False):
 
     # 表示させたいデータに合わせて変更
     for i in range(1):
-        sub_figures.append(figure.add_subplot(1, 1, i + 1))
+        sub_figures.append(figure.add_subplot(3, 2, i + 1))
 
     for j,file_name in enumerate(file_names):
         data = np.load('./agent_log/{}'.format(file_name))
@@ -95,14 +95,17 @@ def output_graph_overlap(file_names, title, w=0.9999, log_scale=False):
             sub_fig.grid(b=True, which='major', color='gray', linestyle='-')
             if log_scale:
                 sub_fig.set_yscale('log')
-            sub_fig.legend(bbox_to_anchor=(1, 1), loc='upper left', borderaxespad=0)
+            sub_fig.legend(bbox_to_anchor=(0, 1), loc='upper left', borderaxespad=0)
             figure.subplots_adjust(wspace=0.4, hspace=0.6)
 
     # dataリスト数分処理
     plt.savefig("./log_figure/{}.jpg".format(title))
 
 def main():
-    seeds = ["621201939", "520718365", "231577753"]
+    seeds = ["31455996", "141897654", "585355530", "74531053", "353498533"]
+    seeds= ["267673820","522963869","153365176"]
+    seeds= ["248941593","123428569","282010902","6193399","278602160"]
+    #seeds= ["30323477","437636585","184751358","64906974","393951905"]
     path = "./agent_log/"
     files = []
     for seed in seeds:
@@ -110,9 +113,8 @@ def main():
         for f in file:
             if not "timestep" in f:
                 file = f
-                break
-        file_name = file.split('/')[-1]
-        files.append(file_name)
+                file_name = file.split('/')[-1]
+                files.append(file_name)
     output_graph_overlap(file_names=files, title="RND")
 
 if __name__ == '__main__':

@@ -99,7 +99,7 @@ class RND_Network(nn.Module):
 class RND_Predictor(object):
     def __init__(self,state_dim):
         self.net = RND_Network(state_dim).to(device)
-        self.net_optimizer = torch.optim.Adam(self.net.parameters())
+        self.net_optimizer = torch.optim.Adam(self.net.parameters(),lr=1e-4)
 
     def predict(self,state):
         state = torch.FloatTensor(state.reshape(1,-1)).to(device)
@@ -107,13 +107,12 @@ class RND_Predictor(object):
 
     def train(self,replay_buffer, target, batch_size=64):
         state,action, next_state, reward, ex_reward, n_step, ex_n_step, not_done = replay_buffer.sample(batch_size)
-        loss = F.mse_loss(self.net(state), target.net(state))
+        loss = F.mse_loss(self.net(next_state), target.net(next_state))
 
         self.net_optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.net.parameters(), 10)
         self.net_optimizer.step()
-
         return loss
 
     def save(self, filename):

@@ -12,7 +12,7 @@ import datetime
 import numpy as np
 
 
-def train(num_episodes, port, process_number, exploration, ro, seed):
+def train(num_episodes, port, process_number, exploration, ro, seed, td3):
     # アクションの最大と最小
     max_a = [1, 1, 1, 100, 180, 180, 100, 180]
     min_a = [-1, -1, -1, 0, -180, -180, 0, -180]
@@ -21,14 +21,14 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
 
     # 環境、エージェント、メモリの生成　メモリはログ出力のためメイン処理ないで記述し、エージェントに渡す。
     env = HalfFieldOffense(port)
-    agent = Agent(state_dim=state_dim, action_dim=action_dim, max_action=max_a, min_action=min_a, exploration=exploration)
+    agent = Agent(state_dim=state_dim, action_dim=action_dim, max_action=max_a, min_action=min_a, exploration=exploration, max_episode=num_episodes, td3=td3)
 
     # Experience Replayで使用するリプレイバッファのインスタンス化
     replay_buffer = memory.ReplayBuffer(state_dim, action_dim)
 
     # ロガーの設定
     max_timestep = 100000000
-    episode_logger = utils.Logger(num_episodes,7)
+    episode_logger = utils.Logger(num_episodes,5)
     timestep_logger = utils.Logger(max_timestep, 59)
     board_writer = SummaryWriter(log_dir="./logs")
 
@@ -112,26 +112,29 @@ def train(num_episodes, port, process_number, exploration, ro, seed):
                                       i["reward"], i["int_reward"], i["n_step"],
                                       i["int_n_step"], i["done"])
                 if timestep >= 1000:
-                    critic_mean, predictor_loss_mean = np.array([0,0,0],dtype='float64'), 0
+                    critic_mean, predictor_loss_mean = 0, 0
                     for i in range(int(episode_timestep*update_ratio)):
                         critic, predictor_loss = agent.learn(replay_buffer)
-                        critic_mean += np.array(critic)
+                        critic_mean += critic
                         predictor_loss_mean += predictor_loss_mean
-                    critic_mean = critic_mean / len(critic_mean)
-                    predictor_loss_mean = predictor_loss_mean / len(critic_mean)
+                    try:
+                        critic_mean = critic_mean / int(episode_timestep*update_ratio)
+                        predictor_loss_mean = predictor_loss_mean / int(episode_timestep*update_ratio)
+                    except ZeroDivisionError:
+                        critic_mean = 0
+                        predictor_loss_mean = 0
 
                     # episodeロガー
-                    episode_logger.add(episode_reward, int_episode_reward, critic_mean[0], critic_mean[1], critic_mean[2], predictor_loss_mean, kick_count)
+                    episode_logger.add(episode_reward, int_episode_reward, critic_mean, predictor_loss_mean, kick_count)
                     board_writer.add_scalar("episode_reward/episodes", episode_reward, episode)
                     board_writer.add_scalar("int_episode_reward/episodes", int_episode_reward, episode)
-                    board_writer.add_scalar("current_q/episodes", critic_mean[0], episode)
-                    board_writer.add_scalar("mixed_q/episodes", critic_mean[1], episode)
-                    board_writer.add_scalar("critic_loss/episodes", critic_mean[2], episode)
+                    board_writer.add_scalar("mixed_q/episodes", critic_mean, episode)
                     board_writer.add_scalar("predictor_loss/episodes", predictor_loss_mean, episode)
 
 
 
                 # エピソード終了のリセット
+                agent.end_episode()
                 state, done = env.reset(), False
                 # position, state = state[1:sep_idx], np.append(state[0:1], state[sep_idx:])
                 episode_reward = 0
@@ -159,8 +162,9 @@ def main():
     exploration = ["RND", "CE","RND+EG","CE+EG","EG"]
     ro = [0.001, 0.01, 0.1, 1, 10, 100, 1000]
     viewer = False
+    td3 = True
 
-    for i in range(1):
+    for i in range(5):
         seed = np.random.randint(0, 1000000000)
         # pytorchのマルチプロセス
         # https://pytorch.org/docs/stable/notes/multiprocessing.html
@@ -171,7 +175,7 @@ def main():
             viewer_process = server.start_viewer(port)
         processes = []
         for rank in range(num_processes):
-            p = mp.Process(target=train, args=(num_episodes,port,rank,exploration[3],ro[3],seed))
+            p = mp.Process(target=train, args=(num_episodes,port,rank,exploration[0],ro[3],seed,td3))
             p.start()
             processes.append(p)
             time.sleep(1)

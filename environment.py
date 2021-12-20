@@ -69,6 +69,7 @@ class HalfFieldOffense():
             ktg = 3. * self.__kick_to_goal_reward(ball_dist_goal_delta)
             eot = self.__EOT_reward()
             reward = mtb + ktg + eot
+            #reward = self.kick_reward(kickable_delta) + eot
             # print("mtb: %.06f ktg: %.06f eot: %.06f"%(mtb,ktg,eot))
 
         self.first_step = False
@@ -80,7 +81,6 @@ class HalfFieldOffense():
         if self.env.playerOnBall().unum < 0 or self.env.playerOnBall().unum == self.unum:
             reward += ball_prox_delta
         if kickable_delta >= 1 and not self.got_kickable_reward:
-            print("KICK!")
             reward += 1.
             self.got_kickable_reward = True
         return reward
@@ -99,7 +99,20 @@ class HalfFieldOffense():
         #    return -1.
         return 0.
 
+    def kick_reward(self, kickable_delta):
+        reward = 0
+        if kickable_delta >= 1 and not self.got_kickable_reward:
+            reward += 1.
+            self.got_kickable_reward = True
+        return reward
+
+
     def reset(self):
+        self.old_ball_prox = 0
+        self.old_kickable = 0
+        self.old_ball_dist_goal = 0
+        self.got_kickable_reward = False
+        self.first_step = True
         while self.status == hfo_py.IN_GAME:
             self.env.act(hfo_py.NOOP)
             self.status = self.env.step()

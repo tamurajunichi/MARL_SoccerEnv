@@ -99,7 +99,7 @@ class RND_Network(nn.Module):
 class RND_Predictor(object):
     def __init__(self,state_dim):
         self.net = RND_Network(state_dim).to(device)
-        self.net_optimizer = torch.optim.Adam(self.net.parameters(),lr=1e-4)
+        self.net_optimizer = torch.optim.Adam(self.net.parameters(),lr=1e-6)
 
     def predict(self,state):
         state = torch.FloatTensor(state.reshape(1,-1)).to(device)
